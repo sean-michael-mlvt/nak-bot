@@ -100,7 +100,6 @@ async def addTF(interaction: discord.Interaction, question: str, answer: bool):
     if view.value is None:
         await interaction.edit_original_response(content="Submission timed out, no confirmation.", view=None, embed=None)
     elif view.value:
-        # TODO: Save True/False Question to SQLite Database
         
         store_question(
             guild_id=interaction.guild_id,
@@ -112,8 +111,6 @@ async def addTF(interaction: discord.Interaction, question: str, answer: bool):
 
         await interaction.edit_original_response(content="✅ Question Submitted Successfully!", view=None, embed=None)
         pass
-
-
 
 # Add Question & Answer
 @client.tree.command(name="addqa", description="Add a Question and Answer trivia question to the database", guild=guild)
@@ -149,7 +146,6 @@ async def addQA(interaction: discord.Interaction, question: str, answer: str, di
     if view.value is None:
         await interaction.edit_original_response(content="Submission timed out, no confirmation.", view=None, embed=None)
     elif view.value:
-        # TODO: Save True/False Question to SQLite Database
 
         store_question(
             guild_id=interaction.guild_id,
@@ -161,8 +157,6 @@ async def addQA(interaction: discord.Interaction, question: str, answer: str, di
 
         await interaction.edit_original_response(content=" ✅ Question Submitted Successfully!", view=None, embed=None)
         pass
-
-
 
 # +-+-+-+-+-+-+-+-+-+
 #  E X E C U T I O N
