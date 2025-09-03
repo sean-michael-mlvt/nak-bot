@@ -12,6 +12,9 @@ import asyncio
 from discord.ext import commands
 from discord import app_commands
 
+# Database Imports
+from db import init_db, store_question
+
 # Load Environment Variables
 load_dotenv()
 token = os.getenv('DISCORD_TOKEN')
