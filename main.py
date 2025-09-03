@@ -34,6 +34,7 @@ class Client(commands.Bot):
 
     async def on_ready(self):
         print(f"Logged on as {self.user}!")
+        init_db()
 
         try:
             synced = await self.tree.sync(guild=guild)
@@ -100,7 +101,15 @@ async def addTF(interaction: discord.Interaction, question: str, answer: bool):
         await interaction.edit_original_response(content="Submission timed out, no confirmation.", view=None, embed=None)
     elif view.value:
         # TODO: Save True/False Question to SQLite Database
-        await asyncio.sleep(3)
+        
+        store_question(
+            guild_id=interaction.guild_id,
+            q_type="TF",
+            question=question.strip(),
+            answer=str(answer),
+            difficulty=2
+        )
+
         await interaction.edit_original_response(content="✅ Question Submitted Successfully!", view=None, embed=None)
         pass
 
@@ -141,7 +150,15 @@ async def addQA(interaction: discord.Interaction, question: str, answer: str, di
         await interaction.edit_original_response(content="Submission timed out, no confirmation.", view=None, embed=None)
     elif view.value:
         # TODO: Save True/False Question to SQLite Database
-        await asyncio.sleep(3)
+
+        store_question(
+            guild_id=interaction.guild_id,
+            q_type="QA",
+            question=question.strip(),
+            answer=answer.strip(),
+            difficulty=difficulty.value
+        )
+
         await interaction.edit_original_response(content=" ✅ Question Submitted Successfully!", view=None, embed=None)
         pass
 

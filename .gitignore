@@ -13,3 +13,6 @@ __pycache__/
 
 # Ignore logs
 *.log
+
+# Database Files
+*.db
