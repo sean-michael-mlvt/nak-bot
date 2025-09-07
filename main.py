@@ -4,6 +4,7 @@ from discord import Embed, Colour
 from dotenv import load_dotenv
 import os
 import logging
+from views import ConfirmationView
 
 #Development imports
 import asyncio
@@ -45,36 +46,9 @@ class Client(commands.Bot):
 
 client = Client(command_prefix="&", intents=intents)
 
-# +-+-+-+-+-+
-#  V I E W S
-# +-+-+-+-+-+
-
-# Confirm or cancel the submission of a trivia question
-class ConfirmationView(discord.ui.View):
-
-    def __init__(self):
-        super().__init__(timeout=25)
-        self.value = None  # Will be True (confirmed), False (cancelled), or None (timeout)
-
-    @discord.ui.button(label="Confirm", style=discord.ButtonStyle.green)
-    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button[ConfirmationView]) -> None:
-
-        self.value = True
-        await interaction.response.edit_message(content="✅ Submission Confirmed! - Storing Question...", view=None, embed=None)
-        self.stop()
-
-    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.red)
-    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button[ConfirmationView]) -> None:
-
-        self.value = False
-        await interaction.response.edit_message(content="❌ Submission Cancelled.", view=None, embed=None)
-        self.stop()
-
-
-
-# +-+-+-+-+-+-+-+-+
-#  C O M M A N D S
-# +-+-+-+-+-+-+-+-+ 
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+ 
+#  U S E R   C O M M A N D S  
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+ 
 
 # Add True or False
 @client.tree.command(name="addtf", description="Add a True or False trivia question to the database", guild=guild)
@@ -157,6 +131,15 @@ async def addQA(interaction: discord.Interaction, question: str, answer: str, di
 
         await interaction.edit_original_response(content=" ✅ Question Submitted Successfully!", view=None, embed=None)
         pass
+
+
+# +-+-+-+-+-+-+-+-+-+-+-+-+
+#  B O T   C O M M A N D S  
+# +-+-+-+-+-+-+-+-+-+-+-+-+ 
+
+# TODO: Write a task to pull a random question from the database and send an embeded message
+# TODO: 1.) Pull Random Question 2.) Set Question's asked_at and expires_at times 3.) Send Embed Message
+
 
 # +-+-+-+-+-+-+-+-+-+
 #  E X E C U T I O N
