@@ -9,21 +9,25 @@ from views import ConfirmationView
 #Development imports
 import asyncio
 
-# Imports for slash commands
+# Imports for commands
 from discord.ext import commands
 from discord import app_commands
+from discord.ext import tasks
+from datetime import time, timezone
 
 # Database Imports
-from db import init_db, store_question
+from db import init_db, store_question, pull_random_trivia
 
 # Load Environment Variables
 load_dotenv()
 token = os.getenv('DISCORD_TOKEN')
 testServerID = os.getenv('DEV_SERVER_ID')
+testChannelID = os.getenv('DEV_CHANNEL_ID')
 guild = discord.Object(id=testServerID)
 
 # Logging setup
 handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
+
 
 # Enabling Necessary Intents - https://discordpy.readthedocs.io/en/stable/intents.html
 intents = discord.Intents.default()
@@ -33,9 +37,14 @@ intents.members = True
 # Client represents a client connection to Discord
 class Client(commands.Bot):
 
+    async def setup_hook(self):
+        init_db()
+
+        if not daily_trivia.is_running():
+            daily_trivia.start()
+
     async def on_ready(self):
         print(f"Logged on as {self.user}!")
-        init_db()
 
         try:
             synced = await self.tree.sync(guild=guild)
@@ -49,7 +58,7 @@ client = Client(command_prefix="&", intents=intents)
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+ 
 #  U S E R   C O M M A N D S  
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+ 
-
+# TODO Get user ID when submitting a question
 # Add True or False
 @client.tree.command(name="addtf", description="Add a True or False trivia question to the database", guild=guild)
 @app_commands.describe(
@@ -85,7 +94,7 @@ async def addTF(interaction: discord.Interaction, question: str, answer: bool):
 
         await interaction.edit_original_response(content="✅ Question Submitted Successfully!", view=None, embed=None)
         pass
-
+# TODO Get user ID when submitting a question
 # Add Question & Answer
 @client.tree.command(name="addqa", description="Add a Question and Answer trivia question to the database", guild=guild)
 @app_commands.choices(
@@ -132,14 +141,29 @@ async def addQA(interaction: discord.Interaction, question: str, answer: str, di
         await interaction.edit_original_response(content=" ✅ Question Submitted Successfully!", view=None, embed=None)
         pass
 
+# TODO Add /setTriviaChannel to configure which channels the bot should announce trivia questions in
 
 # +-+-+-+-+-+-+-+-+-+-+-+-+
 #  B O T   C O M M A N D S  
 # +-+-+-+-+-+-+-+-+-+-+-+-+ 
 
-# TODO: Write a task to pull a random question from the database and send an embeded message
-# TODO: 1.) Pull Random Question 2.) Set Question's asked_at and expires_at times 3.) Send Embed Message
-
+@tasks.loop(time=time(hour=0, minute=2))
+async def daily_trivia():
+    question = pull_random_trivia()
+    embed = discord.Embed(
+        title="🎯 Daily Trivia",
+        description=f"{question["question"]}?",
+        color=discord.Color.blue()
+    )
+    channel = client.get_channel(int(testChannelID))
+    if channel:
+        await channel.send(embed=embed)
+    else: 
+        print("Could not find dev channel")
+    
+@daily_trivia.before_loop
+async def before_daily_trivia():
+    await client.wait_until_ready()
 
 # +-+-+-+-+-+-+-+-+-+
 #  E X E C U T I O N
