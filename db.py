@@ -17,12 +17,12 @@ def init_db():
     with sqlite3.connect(DB_NAME, timeout=3) as connection:
         cursor = connection.cursor()
 
-        # TODO Include user_id in trivia_questions
         # Trivia questions table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS trivia_questions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                guild_id TEXT NOT NULL,
+                guild_id INTEGER NULL,
+                user_id INTEGER NULL,
                 question_type TEXT CHECK(question_type IN ('TF', 'QA')) NOT NULL,
                 question TEXT NOT NULL,
                 answer TEXT NOT NULL,
@@ -39,7 +39,8 @@ def init_db():
             CREATE TABLE IF NOT EXISTS user_answers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 question_id INTEGER NOT NULL,
-                user_id TEXT NOT NULL,
+                guild_id INTEGER NULL,
+                user_id INTEGER NOT NULL,
                 answer TEXT NOT NULL,
                 submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(question_id, user_id),
@@ -51,26 +52,51 @@ def init_db():
         # Leaderboard table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS leaderboard (
-                user_id TEXT PRIMARY KEY,
+                user_id INTEGER PRIMARY KEY,
                 points INTEGER DEFAULT 0
             )
         """)
 
-        # TODO: Create trivia_channels TABLE to map guild_id to channel_id
+        # Guild Configuration table | Admins can set which channel to have trivia questions sent
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS guild_config (
+                guild_id INTEGER PRIMARY KEY,
+                channel_id INTEGER NOT NULL
+            )
+        """)
 
-# TODO Include user_id in store_question()
-def store_question(guild_id: int, q_type: str, question: str, answer: str, difficulty: int):
+def set_trivia_channel(guild_id: int, channel_id: int):
     try:
         with sqlite3.connect(DB_NAME, timeout=3) as connection:
             connection.execute("""
-            INSERT INTO trivia_questions (guild_id, question_type, question, answer, difficulty)
-            VALUES (?, ?, ?, ?, ?)
-            """, (str(guild_id), q_type, question, answer, difficulty))
+                INSERT INTO guild_config (guild_id, channel_id) VALUES (?, ?)
+                ON CONFLICT(guild_id) DO UPDATE SET channel_id = excluded.channel_id
+            """, (guild_id, channel_id))
+    except sqlite3.OperationalError as e:
+        logger.error(f"DB error while setting trivia channel for guild {guild_id}:\n{e}", exc_info=True)
+
+def get_all_guild_configs():
+    try:
+        with sqlite3.connect(DB_NAME, timeout=3) as connection:
+            connection.row_factory = sqlite3.Row
+            cursor = connection.cursor()
+            res = cursor.execute("SELECT guild_id, channel_id FROM guild_config")
+            return res.fetchall()
+    except sqlite3.OperationalError as e:
+        logger.error(f"DB error while fetching all guild configs:\n{e}", exc_info=True)
+        return []
+
+def store_question(guild_id: int, user_id: int, q_type: str, question: str, answer: str, difficulty: int):
+    try:
+        with sqlite3.connect(DB_NAME, timeout=3) as connection:
+            connection.execute("""
+            INSERT INTO trivia_questions (guild_id, user_id, question_type, question, answer, difficulty)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """, (guild_id, user_id, q_type, question, answer, difficulty))
     except sqlite3.OperationalError as e:
         logger.error(f"DB error while inserting {question}\n{e}", exc_info=True)
 
-# TODO: Add guild_id paramater? Some way to ensure each active server is getting a trivia question from one of its members
-def pull_random_trivia():
+def pull_random_trivia(guild_id: int):
     try:
         
         with sqlite3.connect(DB_NAME, timeout=3) as connection:
@@ -80,10 +106,10 @@ def pull_random_trivia():
             res = cursor.execute("""
             SELECT *
             FROM trivia_questions
-            WHERE asked_at IS NULL
+            WHERE asked_at IS NULL AND guild_id = ?
             ORDER BY RANDOM()
             LIMIT 1
-            """)
+            """, (guild_id,))
 
             question = res.fetchone()
 

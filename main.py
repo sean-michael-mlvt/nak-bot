@@ -16,13 +16,14 @@ from discord.ext import tasks
 from datetime import time, timezone
 
 # Database Imports
-from db import init_db, store_question, pull_random_trivia
+from db import init_db, store_question, pull_random_trivia, set_trivia_channel, get_all_guild_configs
 
 # Load Environment Variables
 load_dotenv()
 token = os.getenv('DISCORD_TOKEN')
-testServerID = os.getenv('DEV_SERVER_ID')
-testChannelID = os.getenv('DEV_CHANNEL_ID')
+testServerID = os.getenv('DEV_SERVER_ID')       # Testing Only
+testChannelID = os.getenv('DEV_CHANNEL_ID')     # Testing Only
+QUESTION_TIME = time(hour=22, minute=20)        # Testing Only
 guild = discord.Object(id=testServerID)
 
 # Logging setup
@@ -58,12 +59,12 @@ client = Client(command_prefix="&", intents=intents)
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+ 
 #  U S E R   C O M M A N D S  
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+ 
-# TODO Get user ID when submitting a question
+
 # Add True or False
 @client.tree.command(name="addtf", description="Add a True or False trivia question to the database", guild=guild)
 @app_commands.describe(
-    question="A trivia question about yourself",
-    answer="The correct (True or False) answer for the trivia question",
+    question="A trivia statement about yourself",
+    answer="Whether or not the trivia statement is true or false",
 )
 async def addTF(interaction: discord.Interaction, question: str, answer: bool):
 
@@ -83,9 +84,10 @@ async def addTF(interaction: discord.Interaction, question: str, answer: bool):
     if view.value is None:
         await interaction.edit_original_response(content="Submission timed out, no confirmation.", view=None, embed=None)
     elif view.value:
-        
+
         store_question(
             guild_id=interaction.guild_id,
+            user_id=interaction.user.id,
             q_type="TF",
             question=question.strip(),
             answer=str(answer),
@@ -94,7 +96,7 @@ async def addTF(interaction: discord.Interaction, question: str, answer: bool):
 
         await interaction.edit_original_response(content="✅ Question Submitted Successfully!", view=None, embed=None)
         pass
-# TODO Get user ID when submitting a question
+
 # Add Question & Answer
 @client.tree.command(name="addqa", description="Add a Question and Answer trivia question to the database", guild=guild)
 @app_commands.choices(
@@ -132,6 +134,7 @@ async def addQA(interaction: discord.Interaction, question: str, answer: str, di
 
         store_question(
             guild_id=interaction.guild_id,
+            user_id=interaction.user.id,
             q_type="QA",
             question=question.strip(),
             answer=answer.strip(),
@@ -141,25 +144,76 @@ async def addQA(interaction: discord.Interaction, question: str, answer: str, di
         await interaction.edit_original_response(content=" ✅ Question Submitted Successfully!", view=None, embed=None)
         pass
 
-# TODO Add /setTriviaChannel to configure which channels the bot should announce trivia questions in
+@client.tree.command(name="settriviachannel", description="Sets this channel as the one for daily trivia questions.", guild=guild)
+@app_commands.checks.has_permissions(administrator=True) # Only admins can run this
+async def set_trivia_channel_command(interaction: discord.Interaction):
+    guild_id = interaction.guild_id
+    channel_id = interaction.channel_id
+    
+    set_trivia_channel(guild_id, channel_id)
+
+    await interaction.response.send_message(
+        f"Trivia channel has been set to this channel (`{interaction.channel.name}`).",
+        ephemeral=True
+    )
+
+@set_trivia_channel_command.error
+async def on_set_channel_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.MissingPermissions):
+        await interaction.response.send_message(
+            "Error: You must be an administrator to use this command.",
+            ephemeral=True
+        )
+    else:
+        raise error
 
 # +-+-+-+-+-+-+-+-+-+-+-+-+
 #  B O T   C O M M A N D S  
 # +-+-+-+-+-+-+-+-+-+-+-+-+ 
 
-@tasks.loop(time=time(hour=0, minute=2))
+@tasks.loop(time=QUESTION_TIME)
 async def daily_trivia():
-    question = pull_random_trivia()
-    embed = discord.Embed(
-        title="🎯 Daily Trivia",
-        description=f"{question["question"]}?",
-        color=discord.Color.blue()
-    )
-    channel = client.get_channel(int(testChannelID))
-    if channel:
-        await channel.send(embed=embed)
-    else: 
-        print("Could not find dev channel")
+
+    # Get all guilds that have a trivia channel configured
+    guild_configs = get_all_guild_configs()
+
+    for config in guild_configs:
+        guild_id = config['guild_id']
+        channel_id = config['channel_id']
+
+        # Pull random trivia question from database
+        question = pull_random_trivia(guild_id=guild_id)
+
+        # Get username from user_id of the user who submitted the question
+        authorName = "Unknown Author"
+        authorIcon = None
+        try:
+            user = await client.fetch_user(question["user_id"])
+            authorName = user.display_name
+            authorIcon = user.avatar.url
+        except discord.NotFound:
+            print(f"User with id {question["user_id"]} not found.")
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")
+
+        # Build Embed for announcing question
+        trivia_heading = "### Daily Trivia"
+        title_ender = "?" if (question["question_type"]=="QA" and not question["question"].endswith("?")) else ""
+        stars = "⭐ " * question["difficulty"] + "➖ " * (5 - question["difficulty"])
+        embed = discord.Embed(
+            title=f"{question["question"]}" + title_ender,
+            description=f"**Difficulty:** {stars}\n**Question Type:** {question["question_type"]}\nUse /answer to submit your answer!",
+            color=discord.Color.blue()
+        )
+        embed.set_author(name=f"{authorName}", icon_url=authorIcon)
+
+        # Send message to the configured channel for the guild
+        channel = client.get_channel(channel_id)
+        if channel:
+            await channel.send(content=trivia_heading, embed=embed)
+        else: 
+            print(f"Could not find configured channel with ID {channel_id} for guild {guild_id}")
+    
     
 @daily_trivia.before_loop
 async def before_daily_trivia():
