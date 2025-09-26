@@ -6,9 +6,6 @@ import os
 import logging
 from views import ConfirmationView
 
-#Development imports
-import asyncio
-
 # Imports for commands
 from discord.ext import commands
 from discord import app_commands
