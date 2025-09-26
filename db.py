@@ -132,3 +132,5 @@ def pull_random_trivia(guild_id: int):
     except sqlite3.OperationalError as e:
         logger.error(f"DB error while pulling random question:\n{e}", exc_info=True)
         return None
+
+# TODO: Add store_answer()

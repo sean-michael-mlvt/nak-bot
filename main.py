@@ -164,9 +164,11 @@ async def on_set_channel_error(interaction: discord.Interaction, error: app_comm
     else:
         raise error
 
-# +-+-+-+-+-+-+-+-+-+-+-+-+
-#  B O T   C O M M A N D S  
-# +-+-+-+-+-+-+-+-+-+-+-+-+ 
+# TODO: Add /answer : Submit answer to user_answers table using store_answer function from db.py
+
+# +-+-+-+-+-+-+-+-+-+
+#  B O T   T A S K S  
+# +-+-+-+-+-+-+-+-+-+ 
 
 @tasks.loop(time=QUESTION_TIME)
 async def daily_trivia():
