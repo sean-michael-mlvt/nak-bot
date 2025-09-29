@@ -211,7 +211,7 @@ async def leaderboard(interaction: discord.Interaction):
         rankings.append(f"{rank_icon} <@{user_id}> `{points}` points")
         
     embed = discord.Embed(
-        title=f"{interaction.guild.name} Leaderboard",
+        title=f"Top 10 Nak-Knowers in {interaction.guild.name}",
         description="\n".join(rankings),
         color=discord.Color.gold()
     )
