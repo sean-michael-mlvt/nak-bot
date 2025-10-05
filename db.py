@@ -42,6 +42,7 @@ def init_db():
                 guild_id INTEGER NOT NULL,
                 user_id INTEGER NOT NULL,
                 answer TEXT NOT NULL,
+                is_correct INTEGER DEFAULT 0 CHECK(is_correct IN (0,1)),
                 submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(question_id, user_id),
                 FOREIGN KEY (question_id) REFERENCES trivia_questions(id)
@@ -145,7 +146,9 @@ def pull_random_trivia(guild_id: int):
             """, (now, expires_at, question["id"]))
 
             logger.info(f"Trivia question {question['id']} marked as asked (expires at {expires_at}).")
-            return dict(question)
+            question_dict = dict(question)
+            question_dict['expires_at'] = expires_at
+            return question_dict
 
     except sqlite3.OperationalError as e:
         logger.error(f"DB error while pulling random question:\n{e}", exc_info=True)
@@ -194,6 +197,13 @@ def store_answer(question_id: int, guild_id: int, user_id: int, answer: str):
     except sqlite3.OperationalError as e:
         logger.error(f"DB error while inserting answer from user {user_id} for question {question_id}\n{e}", exc_info=True)
 
+def mark_answer_correct(answer_id: int):
+    try:
+        with sqlite3.connect(DB_NAME, timeout=3) as connection:
+            connection.execute("UPDATE user_answers SET is_correct = 1 WHERE id = ?", (answer_id,))
+    except sqlite3.OperationalError as e:
+        logger.error(f"DB error marking answer {answer_id} as correct:\n{e}", exc_info=True)
+
 def get_expired_questions():
     try:
         with sqlite3.connect(DB_NAME, timeout=3) as connection:
@@ -215,7 +225,7 @@ def get_answers_for_question(question_id: int):
             connection.row_factory = sqlite3.Row
             cursor = connection.cursor()
             res = cursor.execute("""
-                SELECT user_id, answer FROM user_answers WHERE question_id = ?
+                SELECT id, user_id, answer FROM user_answers WHERE question_id = ?
             """, (question_id,))
             return res.fetchall()
     except sqlite3.OperationalError as e:

@@ -4,6 +4,7 @@ from discord import Embed, Colour
 from dotenv import load_dotenv
 import os
 import logging
+import asyncio
 from views import ConfirmationView
 
 # Imports for commands
@@ -13,7 +14,7 @@ from discord.ext import tasks
 from datetime import time, timezone
 
 # Database Imports
-from db import init_db, store_question, pull_random_trivia, set_trivia_channel, get_all_guild_configs, get_active_question, store_answer
+from db import init_db, store_question, pull_random_trivia, set_trivia_channel, get_all_guild_configs, get_active_question, store_answer, mark_answer_correct
 from db import get_expired_questions, get_answers_for_question, get_channel_for_guild, update_leaderboard, close_question, get_leaderboard
 
 # Load Environment Variables
@@ -21,7 +22,7 @@ load_dotenv()
 token = os.getenv('DISCORD_TOKEN')
 testServerID = os.getenv('DEV_SERVER_ID')       # Testing Only
 testChannelID = os.getenv('DEV_CHANNEL_ID')     # Testing Only
-QUESTION_TIME = time(hour=1, minute=12)        # Testing Only
+TRIVIA_INTERVAL = 3                             # Minutes between trivia questions
 guild = discord.Object(id=testServerID)
 
 # Logging setup
@@ -222,7 +223,7 @@ async def leaderboard(interaction: discord.Interaction):
 #  B O T   T A S K S  
 # +-+-+-+-+-+-+-+-+-+ 
 
-@tasks.loop(time=QUESTION_TIME)
+@tasks.loop(minutes=TRIVIA_INTERVAL)
 async def daily_trivia():
 
     # Get all guilds that have a trivia channel configured
@@ -265,6 +266,8 @@ async def daily_trivia():
         embed.set_author(name=f"{authorName}", icon_url=authorIcon)
         embed.add_field(name="Difficulty", value=f"{stars}", inline=False)
         embed.add_field(name="Question Type", value=f"{question["question_type"]}", inline=False)
+        expire_ts = int(question['expires_at'].replace(tzinfo=timezone.utc).timestamp())
+        embed.add_field(name="Expires", value=f"<t:{expire_ts}:R>")
         embed.set_footer(text="Use /answer to submit your answer!")
 
         # Send message to the configured channel for the guild
@@ -277,8 +280,9 @@ async def daily_trivia():
 @daily_trivia.before_loop
 async def before_daily_trivia():
     await client.wait_until_ready()
+    await asyncio.sleep(60)
 
-@tasks.loop(minutes=1)
+@tasks.loop(seconds=30)
 async def check_for_expired_trivia():
     expired_questions = get_expired_questions()
     
@@ -298,6 +302,7 @@ async def check_for_expired_trivia():
                 is_correct = True
             
             if is_correct:
+                mark_answer_correct(sub['id'])
                 update_leaderboard(question['guild_id'], sub['user_id'], points_to_award)
                 winners.append(f"<@{sub['user_id']}>")
 
