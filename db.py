@@ -1,13 +1,16 @@
-# db.py (UPDATED FOR POSTGRESQL)
 import os
 import psycopg2
 import psycopg2.extras
+from psycopg2.pool import SimpleConnectionPool
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 import logging
 import sys
 
-# Render will provide this environment variable
 DATABASE_URL = os.getenv('DATABASE_URL')
+
+# Create a global connection pool
+pool = SimpleConnectionPool(minconn=1, maxconn=10, dsn=DATABASE_URL, sslmode='require')
 
 EXPIRATION_HOURS = 0
 EXPIRATION_MINUTES = 45
@@ -21,9 +24,14 @@ logging.basicConfig(
     ]
 )
 
+@contextmanager
 def get_connection():
-    # Use SSL for connection to cloud database
-    return psycopg2.connect(DATABASE_URL, sslmode='require')
+    # Get a connection from the pool and return it when done
+    connection = pool.getconn()
+    try:
+        yield connection
+    finally:
+        pool.putconn(connection)
 
 def init_db():
     with get_connection() as connection:
