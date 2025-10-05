@@ -349,6 +349,10 @@ async def check_for_expired_trivia():
     expired_questions = get_expired_questions()
     
     for question in expired_questions:
+
+        # Mark the question as processed
+        close_question(question['id'])
+
         submissions = get_answers_for_question(question['id'])
         correct_answer = question['answer'].lower().strip()
         points_to_award = 10 * question['difficulty']
@@ -401,8 +405,6 @@ async def check_for_expired_trivia():
                 
                 await channel.send(content=resultsHeading, embed=results_embed)
 
-        # Mark the question as processed
-        close_question(question['id'])
 
 @check_for_expired_trivia.before_loop
 async def before_check_expired():
