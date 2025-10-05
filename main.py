@@ -3,6 +3,7 @@ import discord
 from discord import Embed, Colour
 from dotenv import load_dotenv
 import os
+import sys
 import logging
 import asyncio
 from views import ConfirmationView
@@ -11,7 +12,7 @@ from views import ConfirmationView
 from discord.ext import commands
 from discord import app_commands
 from discord.ext import tasks
-from datetime import time, timezone
+from datetime import time, timezone, datetime
 
 # Database Imports
 from db import init_db, store_question, pull_random_trivia, set_trivia_channel, get_all_guild_configs, get_active_question, store_answer, mark_answer_correct
@@ -20,14 +21,20 @@ from db import get_expired_questions, get_answers_for_question, get_channel_for_
 # Load Environment Variables
 load_dotenv()
 token = os.getenv('DISCORD_TOKEN')
-testServerID = os.getenv('DEV_SERVER_ID')       # Testing Only
-testChannelID = os.getenv('DEV_CHANNEL_ID')     # Testing Only
-TRIVIA_INTERVAL = 2                             # Minutes between trivia questions
-guild = discord.Object(id=testServerID)
+# testServerID = os.getenv('DEV_SERVER_ID')       # Testing Only
+# testChannelID = os.getenv('DEV_CHANNEL_ID')     # Testing Only
+TRIVIA_INTERVAL = 60                              # Minutes between trivia questions
+# guild = discord.Object(id=testServerID)
 
 # Logging setup
-handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
-
+# handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
 
 # Enabling Necessary Intents - https://discordpy.readthedocs.io/en/stable/intents.html
 intents = discord.Intents.default()
@@ -46,14 +53,14 @@ class Client(commands.Bot):
             check_for_expired_trivia.start()
 
     async def on_ready(self):
-        print(f"Logged on as {self.user}!")
+        logging.info(f"Logged on as {self.user}!")
 
         try:
-            synced = await self.tree.sync(guild=guild)
-            print(f'Synced {len(synced)} commands to guild {guild.id}')
+            synced = await self.tree.sync()
+            logging.info(f'Synced {len(synced)} commands globally')
 
         except Exception as e:
-            print(f'Error syncing commands: {e}')
+            logging.error(f'Error syncing commands: {e}')
 
 client = Client(command_prefix="&", intents=intents)
 
@@ -62,7 +69,7 @@ client = Client(command_prefix="&", intents=intents)
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+ 
 
 # Add True or False
-@client.tree.command(name="addtf", description="Add a True or False trivia question to the database", guild=guild)
+@client.tree.command(name="addtf", description="Add a True or False trivia question to the database")
 @app_commands.describe(
     statement="A trivia statement about yourself",
     answer="Whether or not the trivia statement is true or false",
@@ -99,7 +106,7 @@ async def addTF(interaction: discord.Interaction, statement: str, answer: bool):
         pass
 
 # Add Question & Answer
-@client.tree.command(name="addqa", description="Add a Question and Answer trivia question to the database", guild=guild)
+@client.tree.command(name="addqa", description="Add a Question and Answer trivia question to the database")
 @app_commands.choices(
     difficulty=[
         app_commands.Choice(name="1 (Very Easy)", value=1),
@@ -145,7 +152,7 @@ async def addQA(interaction: discord.Interaction, question: str, answer: str, di
         await interaction.edit_original_response(content="✅ Question Submitted Successfully!", view=None, embed=None)
         pass
 
-@client.tree.command(name="settriviachannel", description="Sets this channel as the one for daily trivia questions.", guild=guild)
+@client.tree.command(name="settriviachannel", description="Sets this channel as the one for daily trivia questions.")
 @app_commands.checks.has_permissions(administrator=True) # Only admins can run this
 async def set_trivia_channel_command(interaction: discord.Interaction):
     guild_id = interaction.guild_id
@@ -168,7 +175,7 @@ async def on_set_channel_error(interaction: discord.Interaction, error: app_comm
     else:
         raise error
 
-@client.tree.command(name="settriviarole", description="Sets a role to be mentioned when a new trivia question is announced.", guild=guild)
+@client.tree.command(name="settriviarole", description="Sets a role to be mentioned when a new trivia question is announced.")
 @app_commands.describe(role="The role to mention. Leave blank to clear the current setting.")
 @app_commands.checks.has_permissions(administrator=True)
 async def set_trivia_role_command(interaction: discord.Interaction, role: discord.Role = None):
@@ -204,7 +211,7 @@ async def on_set_role_error(interaction: discord.Interaction, error: app_command
     else:
         raise error
 
-@client.tree.command(name="answer", description="Submit an answer for the most recent trivia question asked.", guild=guild)
+@client.tree.command(name="answer", description="Submit an answer for the most recent trivia question asked.")
 @app_commands.describe(
     answer="QA Questions: Your answer to the most recent question. \n TF Questions: \"True\" or \"False\". "
 )
@@ -237,7 +244,7 @@ async def submit_answer(interaction: discord.Interaction, answer: str):
         ephemeral=True
     )
 
-@client.tree.command(name="leaderboard", description="Displays the top 10 trivia players for this server.", guild=guild)
+@client.tree.command(name="leaderboard", description="Displays the top 10 trivia players for this server.")
 async def leaderboard(interaction: discord.Interaction):
     guild_id = interaction.guild_id
     board = get_leaderboard(guild_id=guild_id)
@@ -270,6 +277,13 @@ async def leaderboard(interaction: discord.Interaction):
 @tasks.loop(minutes=TRIVIA_INTERVAL)
 async def daily_trivia():
 
+    now_utc = datetime.now(timezone.utc)
+
+    # Check if the current hour is between 2:00 and 5:00 EDT
+    if 5 <= now_utc.hour <= 9:
+        logging.info("Skipping trivia task during quiet hours (2:00-5:00 UTC).")
+        return
+
     # Get all guilds that have a trivia channel configured
     guild_configs = get_all_guild_configs()
 
@@ -283,7 +297,7 @@ async def daily_trivia():
 
         # If no question is found for this guild, skip to the next one
         if not question:
-            print(f"No questions available for guild {guild_id}. Skipping.")
+            logging.info(f"No questions available for guild {guild_id}. Skipping.")
             continue
 
         # Get username from user_id of the user who submitted the question
@@ -294,9 +308,9 @@ async def daily_trivia():
             authorName = user.display_name
             authorIcon = user.avatar.url
         except discord.NotFound:
-            print(f"User with id {question["user_id"]} not found.")
+            logging.debug(f"User with id {question["user_id"]} not found.")
         except Exception as e:
-            print(f"An unexpected error occurred: {e}")
+            logging.error(f"An unexpected error occurred: {e}")
 
         # Build Embed for announcing question
         mention_string = ""
@@ -323,14 +337,14 @@ async def daily_trivia():
         if channel:
             await channel.send(content=trivia_heading, embed=embed)
         else: 
-            print(f"Could not find configured channel with ID {channel_id} for guild {guild_id}")
+            logging.error(f"Could not find configured channel with ID {channel_id} for guild {guild_id}")
     
 @daily_trivia.before_loop
 async def before_daily_trivia():
     await client.wait_until_ready()
     await asyncio.sleep(60)
 
-@tasks.loop(seconds=30)
+@tasks.loop(minutes=5)
 async def check_for_expired_trivia():
     expired_questions = get_expired_questions()
     
@@ -372,9 +386,9 @@ async def check_for_expired_trivia():
                     authorName = user.display_name
                     authorIcon = user.avatar.url
                 except discord.NotFound:
-                    print(f"User with id {question["user_id"]} not found.")
+                    logging.error(f"User with id {question["user_id"]} not found.")
                 except Exception as e:
-                    print(f"An unexpected error occurred: {e}")
+                    logging.error(f"An unexpected error occurred: {e}")
                 results_embed.set_author(name=f"{authorName}", icon_url=authorIcon)
 
                 resultsHeading = "### New Trivia Results!"
@@ -399,4 +413,7 @@ async def before_check_expired():
 # +-+-+-+-+-+-+-+-+-+
 
 # Running Bot with an instance of Client and logging debug messages to discord.log
-client.run(token, log_handler=handler, log_level=logging.DEBUG)
+# client.run(token, log_handler=handler, log_level=logging.DEBUG)
+
+# Running Bot with an instance of Client
+client.run(token)

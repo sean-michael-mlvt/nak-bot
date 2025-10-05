@@ -16,3 +16,4 @@ __pycache__/
 
 # Database Files
 *.db
+*.sqlite3
