@@ -87,6 +87,7 @@ def init_db():
                     mention_role_id BIGINT NULL
                 )
             """)
+        connection.commit()
     logging.info("Database initialized successfully.")
 
 def set_trivia_channel(guild_id: int, channel_id: int):
@@ -97,6 +98,7 @@ def set_trivia_channel(guild_id: int, channel_id: int):
                     INSERT INTO guild_config (guild_id, channel_id) VALUES (%s, %s)
                     ON CONFLICT(guild_id) DO UPDATE SET channel_id = excluded.channel_id
                 """, (guild_id, channel_id))
+            connection.commit()
     except psycopg2.Error as e:
         logging.error(f"DB error while setting trivia channel for guild {guild_id}:\n{e}", exc_info=True)
 
@@ -109,6 +111,7 @@ def set_trivia_role(guild_id: int, role_id: int | None):
                     UPDATE guild_config SET mention_role_id = %s WHERE guild_id = %s
                 """, (role_id, guild_id))
                 return cursor.rowcount > 0
+            connection.commit()
     except psycopg2.Error as e:
         logging.error(f"DB error while setting trivia role for guild {guild_id}:\n{e}", exc_info=True)
         return False
@@ -145,6 +148,7 @@ def store_question(guild_id: int, user_id: int, q_type: str, question: str, answ
                 INSERT INTO trivia_questions (guild_id, user_id, question_type, question, answer, difficulty)
                 VALUES (%s, %s, %s, %s, %s, %s)
                 """, (guild_id, user_id, q_type, question, answer, difficulty))
+            connection.commit()
     except psycopg2.Error as e:
         logging.error(f"DB error while inserting {question}\n{e}", exc_info=True)
 
@@ -177,6 +181,7 @@ def pull_random_trivia(guild_id: int):
                 question_dict = dict(question)
                 question_dict['expires_at'] = expires_at
                 return question_dict
+            connection.commit()
     except psycopg2.Error as e:
         logging.error(f"DB error while pulling random question:\n{e}", exc_info=True)
         return None
@@ -209,6 +214,7 @@ def store_answer(question_id: int, guild_id: int, user_id: int, answer: str):
                     answer = excluded.answer,
                     submitted_at = CURRENT_TIMESTAMP
                 """, (question_id, guild_id, user_id, answer))
+            connection.commit()
     except psycopg2.Error as e:
         logging.error(f"DB error inserting answer from user {user_id} for question {question_id}\n{e}", exc_info=True)
 
@@ -217,6 +223,7 @@ def mark_answer_correct(answer_id: int):
         with get_connection() as connection:
             with connection.cursor() as cursor:
                 cursor.execute("UPDATE user_answers SET is_correct = TRUE WHERE id = %s", (answer_id,))
+            connection.commit()
     except psycopg2.Error as e:
         logging.error(f"DB error marking answer {answer_id} as correct:\n{e}", exc_info=True)
 
@@ -250,6 +257,7 @@ def update_leaderboard(guild_id: int, user_id: int, points: int):
                     INSERT INTO leaderboard (guild_id, user_id, points) VALUES (%s, %s, %s)
                     ON CONFLICT(user_id, guild_id) DO UPDATE SET points = leaderboard.points + excluded.points
                 """, (guild_id, user_id, points))
+            connection.commit()
     except psycopg2.Error as e:
         logging.error(f"DB error updating leaderboard for user {user_id}:\n{e}", exc_info=True)
 
@@ -258,6 +266,7 @@ def close_question(question_id: int):
         with get_connection() as connection:
             with connection.cursor() as cursor:
                 cursor.execute("UPDATE trivia_questions SET closed = TRUE WHERE id = %s", (question_id,))
+            connection.commit()
     except psycopg2.Error as e:
         logging.error(f"DB error closing question {question_id}:\n{e}", exc_info=True)
 
