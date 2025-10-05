@@ -221,6 +221,14 @@ async def submit_answer(interaction: discord.Interaction, answer: str):
         )
         return
 
+    question_author_id = active_question['user_id']
+    if user_id == question_author_id:
+        await interaction.response.send_message(
+            "You can't answer your own trivia question!",
+            ephemeral=True
+        )
+        return
+
     question_id = active_question['id']
     store_answer(question_id, guild_id, user_id, answer.strip())
 
