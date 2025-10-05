@@ -15,14 +15,14 @@ from datetime import time, timezone
 
 # Database Imports
 from db import init_db, store_question, pull_random_trivia, set_trivia_channel, get_all_guild_configs, get_active_question, store_answer, mark_answer_correct
-from db import get_expired_questions, get_answers_for_question, get_channel_for_guild, update_leaderboard, close_question, get_leaderboard
+from db import get_expired_questions, get_answers_for_question, get_channel_for_guild, update_leaderboard, close_question, get_leaderboard, set_trivia_role
 
 # Load Environment Variables
 load_dotenv()
 token = os.getenv('DISCORD_TOKEN')
 testServerID = os.getenv('DEV_SERVER_ID')       # Testing Only
 testChannelID = os.getenv('DEV_CHANNEL_ID')     # Testing Only
-TRIVIA_INTERVAL = 3                             # Minutes between trivia questions
+TRIVIA_INTERVAL = 2                             # Minutes between trivia questions
 guild = discord.Object(id=testServerID)
 
 # Logging setup
@@ -168,6 +168,42 @@ async def on_set_channel_error(interaction: discord.Interaction, error: app_comm
     else:
         raise error
 
+@client.tree.command(name="settriviarole", description="Sets a role to be mentioned when a new trivia question is announced.", guild=guild)
+@app_commands.describe(role="The role to mention. Leave blank to clear the current setting.")
+@app_commands.checks.has_permissions(administrator=True)
+async def set_trivia_role_command(interaction: discord.Interaction, role: discord.Role = None):
+    guild_id = interaction.guild_id
+    role_id = role.id if role else None
+
+    success = set_trivia_role(guild_id, role_id)
+    
+    if success:
+        if role:
+            await interaction.response.send_message(
+                f"The trivia mention role has been set to `{role.name}`.",
+                ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                "The trivia mention role has been cleared.",
+                ephemeral=True
+            )
+    else:
+        await interaction.response.send_message(
+            "Error: Could not set trivia role. Please set a trivia channel first using `/settriviachannel`.",
+            ephemeral=True
+        )
+
+@set_trivia_role_command.error
+async def on_set_role_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.MissingPermissions):
+        await interaction.response.send_message(
+            "Error: You must be an administrator to use this command.",
+            ephemeral=True
+        )
+    else:
+        raise error
+
 @client.tree.command(name="answer", description="Submit an answer for the most recent trivia question asked.", guild=guild)
 @app_commands.describe(
     answer="QA Questions: Your answer to the most recent question. \n TF Questions: \"True\" or \"False\". "
@@ -232,6 +268,7 @@ async def daily_trivia():
     for config in guild_configs:
         guild_id = config['guild_id']
         channel_id = config['channel_id']
+        mention_role_id = config['mention_role_id']
 
         # Pull random trivia question from database
         question = pull_random_trivia(guild_id=guild_id)
@@ -254,7 +291,10 @@ async def daily_trivia():
             print(f"An unexpected error occurred: {e}")
 
         # Build Embed for announcing question
-        trivia_heading = "### New Trivia Question!"
+        mention_string = ""
+        if mention_role_id:
+            mention_string = f"<@&{mention_role_id}>"
+        trivia_heading = f"### New Trivia Question! {mention_string}"
         title_ender = "?" if (question["question_type"]=="QA" and not question["question"].endswith("?")) else ""
         stars = "⭐ " * question["difficulty"] + "➖ " * (5 - question["difficulty"])
         embed = discord.Embed(

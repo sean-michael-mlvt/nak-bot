@@ -64,7 +64,8 @@ def init_db():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS guild_config (
                 guild_id INTEGER PRIMARY KEY,
-                channel_id INTEGER NOT NULL
+                channel_id INTEGER NOT NULL,
+                mention_role_id INTEGER NULL
             )
         """)
 
@@ -78,12 +79,25 @@ def set_trivia_channel(guild_id: int, channel_id: int):
     except sqlite3.OperationalError as e:
         logger.error(f"DB error while setting trivia channel for guild {guild_id}:\n{e}", exc_info=True)
 
+def set_trivia_role(guild_id: int, role_id: int | None):
+    try:
+        with sqlite3.connect(DB_NAME, timeout=3) as connection:
+            # Only UPDATE here, A row should already exist from setting the channel.
+            res = connection.execute("""
+                UPDATE guild_config SET mention_role_id = ? WHERE guild_id = ?
+            """, (role_id, guild_id))
+            return res.rowcount > 0 # Returns True if a row was updated, False otherwise
+    except sqlite3.OperationalError as e:
+        logger.error(f"DB error while setting trivia role for guild {guild_id}:\n{e}", exc_info=True)
+        return False
+
+
 def get_all_guild_configs():
     try:
         with sqlite3.connect(DB_NAME, timeout=3) as connection:
             connection.row_factory = sqlite3.Row
             cursor = connection.cursor()
-            res = cursor.execute("SELECT guild_id, channel_id FROM guild_config")
+            res = cursor.execute("SELECT guild_id, channel_id, mention_role_id FROM guild_config")
             return res.fetchall()
     except sqlite3.OperationalError as e:
         logger.error(f"DB error while fetching all guild configs:\n{e}", exc_info=True)
