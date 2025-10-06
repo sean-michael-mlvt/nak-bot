@@ -163,8 +163,7 @@ async def set_trivia_channel_command(interaction: discord.Interaction):
     set_trivia_channel(guild_id, channel_id)
 
     await interaction.edit_original_response(
-        f"Trivia channel has been set to this channel (`{interaction.channel.name}`).",
-        ephemeral=True
+        f"Trivia channel has been set to this channel (`{interaction.channel.name}`)."
     )
 
 @set_trivia_channel_command.error
