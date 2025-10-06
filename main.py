@@ -151,7 +151,7 @@ async def set_trivia_channel_command(interaction: discord.Interaction):
 @set_trivia_channel_command.error
 async def on_set_channel_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.MissingPermissions):
-        await interaction.response.send_message(content="Error: You must be an administrator to use this command.")
+        await interaction.edit_original_response(content="Error: You must be an administrator to use this command.")
     else:
         raise error
 
@@ -183,9 +183,8 @@ async def set_trivia_role_command(interaction: discord.Interaction, role: discor
 @set_trivia_role_command.error
 async def on_set_role_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.MissingPermissions):
-        await interaction.response.send_message(
-            "Error: You must be an administrator to use this command.",
-            ephemeral=True
+        await interaction.edit_original_response(
+            "Error: You must be an administrator to use this command."
         )
     else:
         raise error
@@ -231,7 +230,7 @@ async def leaderboard(interaction: discord.Interaction):
     board = get_leaderboard(guild_id=guild_id)
     
     if not board:
-        await interaction.response.send_message("The leaderboard is currently empty.", ephemeral=True)
+        await interaction.edit_original_response("The leaderboard is currently empty.", ephemeral=True)
         return
         
     rankings = []
