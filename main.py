@@ -407,7 +407,7 @@ async def check_for_expired_trivia():
 @check_for_expired_trivia.before_loop
 async def before_check_expired():
     await client.wait_until_ready()
-    await asyncio.sleep(60)
+    await asyncio.sleep(90)
 
 # +-+-+-+-+-+-+-+-+-+
 #  E X E C U T I O N

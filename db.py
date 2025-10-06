@@ -46,9 +46,9 @@ def init_db():
                     question TEXT NOT NULL,
                     answer TEXT NOT NULL,
                     difficulty INTEGER CHECK(difficulty BETWEEN 1 AND 5),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    asked_at TIMESTAMP,
-                    expires_at TIMESTAMP,
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                    asked_at TIMESTAMPTZ,
+                    expires_at TIMESTAMPTZ,
                     closed BOOLEAN DEFAULT FALSE NOT NULL
                 )
             """)
@@ -62,7 +62,7 @@ def init_db():
                     user_id BIGINT NOT NULL,
                     answer TEXT NOT NULL,
                     is_correct BOOLEAN DEFAULT FALSE NOT NULL,
-                    submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    submitted_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE(question_id, user_id),
                     FOREIGN KEY (question_id) REFERENCES trivia_questions(id)
                         ON DELETE CASCADE
