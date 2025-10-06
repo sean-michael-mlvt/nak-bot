@@ -23,7 +23,7 @@ load_dotenv()
 token = os.getenv('DISCORD_TOKEN')
 # testServerID = os.getenv('DEV_SERVER_ID')       # Testing Only
 # testChannelID = os.getenv('DEV_CHANNEL_ID')     # Testing Only
-TRIVIA_INTERVAL = 8                              # Minutes between trivia questions
+TRIVIA_INTERVAL = 60                              # Minutes between trivia questions
 # guild = discord.Object(id=testServerID)
 
 # Logging setup
@@ -216,14 +216,14 @@ async def submit_answer(interaction: discord.Interaction, answer: str):
 
     question_id = active_question['id']
     store_answer(question_id, guild_id, user_id, answer.strip())
-
+    logging.info(f"Stored Answer: {answer.strip()} From User: {user_id}\nFor Question: {active_question['question']} From User: {active_question['user_id']}")
     await interaction.edit_original_response(
         content="Your answer has been recorded! You can update it by using the /answer command again."
     )
 
 @client.tree.command(name="leaderboard", description="Displays the top 10 trivia players for this server.")
 async def leaderboard(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
+    await interaction.response.defer()
 
     logging.info("Pulling Leaderboard")
     guild_id = interaction.guild_id
@@ -322,9 +322,9 @@ async def daily_trivia():
 @daily_trivia.before_loop
 async def before_daily_trivia():
     await client.wait_until_ready()
-    await asyncio.sleep(60)
+    await asyncio.sleep(120)
 
-@tasks.loop(minutes=2)
+@tasks.loop(minutes=10)
 async def check_for_expired_trivia():
     expired_questions = get_expired_questions()
     
@@ -333,7 +333,7 @@ async def check_for_expired_trivia():
         # Mark the question as processed
         close_question(question['id'])
 
-        logging.info(f"Processing question from user {question["user_id"]}:\n{question["question"]}")
+        logging.info(f"Processing question from user {question["user_id"]}: {question["question"]}")
         submissions = get_answers_for_question(question['id'])
         correct_answer = question['answer'].lower().strip()
         points_to_award = 10 * question['difficulty']
@@ -390,7 +390,7 @@ async def check_for_expired_trivia():
 @check_for_expired_trivia.before_loop
 async def before_check_expired():
     await client.wait_until_ready()
-    await asyncio.sleep(90)
+    await asyncio.sleep(150)
 
 # +-+-+-+-+-+-+-+-+-+
 #  E X E C U T I O N

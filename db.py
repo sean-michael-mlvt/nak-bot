@@ -13,7 +13,7 @@ DATABASE_URL = os.getenv('DATABASE_URL')
 pool = SimpleConnectionPool(minconn=1, maxconn=10, dsn=DATABASE_URL, sslmode='require')
 
 EXPIRATION_HOURS = 0
-EXPIRATION_MINUTES = 5
+EXPIRATION_MINUTES = 49
 
 # logger = logging.getLogger("discord")
 logging.basicConfig(
