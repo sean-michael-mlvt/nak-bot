@@ -155,12 +155,14 @@ async def addQA(interaction: discord.Interaction, question: str, answer: str, di
 @client.tree.command(name="settriviachannel", description="Sets this channel as the one for daily trivia questions.")
 @app_commands.checks.has_permissions(administrator=True) # Only admins can run this
 async def set_trivia_channel_command(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+
     guild_id = interaction.guild_id
     channel_id = interaction.channel_id
     
     set_trivia_channel(guild_id, channel_id)
 
-    await interaction.response.send_message(
+    await interaction.edit_original_response(
         f"Trivia channel has been set to this channel (`{interaction.channel.name}`).",
         ephemeral=True
     )
@@ -168,10 +170,7 @@ async def set_trivia_channel_command(interaction: discord.Interaction):
 @set_trivia_channel_command.error
 async def on_set_channel_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.MissingPermissions):
-        await interaction.response.send_message(
-            "Error: You must be an administrator to use this command.",
-            ephemeral=True
-        )
+        await interaction.response.send_message(content="Error: You must be an administrator to use this command.")
     else:
         raise error
 
@@ -179,6 +178,8 @@ async def on_set_channel_error(interaction: discord.Interaction, error: app_comm
 @app_commands.describe(role="The role to mention. Leave blank to clear the current setting.")
 @app_commands.checks.has_permissions(administrator=True)
 async def set_trivia_role_command(interaction: discord.Interaction, role: discord.Role = None):
+    await interaction.response.defer(ephemeral=True)
+
     guild_id = interaction.guild_id
     role_id = role.id if role else None
 
@@ -186,19 +187,16 @@ async def set_trivia_role_command(interaction: discord.Interaction, role: discor
     
     if success:
         if role:
-            await interaction.response.send_message(
-                f"The trivia mention role has been set to `{role.name}`.",
-                ephemeral=True
+            await interaction.edit_original_response(
+                f"The trivia mention role has been set to `{role.name}`."
             )
         else:
-            await interaction.response.send_message(
-                "The trivia mention role has been cleared.",
-                ephemeral=True
+            await interaction.edit_original_response(
+                "The trivia mention role has been cleared."
             )
     else:
-        await interaction.response.send_message(
-            "Error: Could not set trivia role. Please set a trivia channel first using `/settriviachannel`.",
-            ephemeral=True
+        await interaction.edit_original_response(
+            "Error: Could not set trivia role. Please set a trivia channel first using `/settriviachannel`."
         )
 
 @set_trivia_role_command.error
@@ -216,36 +214,37 @@ async def on_set_role_error(interaction: discord.Interaction, error: app_command
     answer="QA Questions: Your answer to the most recent question. \n TF Questions: \"True\" or \"False\". "
 )
 async def submit_answer(interaction: discord.Interaction, answer: str):
+    await interaction.response.defer(ephemeral=True)
+
     guild_id = interaction.guild_id
     user_id = interaction.user.id
 
     active_question = get_active_question(guild_id=guild_id)
     
     if not active_question:
-        await interaction.response.send_message(
-            "There is no active trivia question to answer right now.",
-            ephemeral=True
+        await interaction.edit_original_response(
+            "There is no active trivia question to answer right now."
         )
         return
 
     question_author_id = active_question['user_id']
     if user_id == question_author_id:
-        await interaction.response.send_message(
-            "You can't answer your own trivia question!",
-            ephemeral=True
+        await interaction.edit_original_response(
+            "You can't answer your own trivia question!"
         )
         return
 
     question_id = active_question['id']
     store_answer(question_id, guild_id, user_id, answer.strip())
 
-    await interaction.response.send_message(
-        "Your answer has been recorded! You can update it by using the /answer command again.",
-        ephemeral=True
+    await interaction.edit_original_response(
+        "Your answer has been recorded! You can update it by using the /answer command again."
     )
 
 @client.tree.command(name="leaderboard", description="Displays the top 10 trivia players for this server.")
 async def leaderboard(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+
     guild_id = interaction.guild_id
     board = get_leaderboard(guild_id=guild_id)
     
@@ -268,7 +267,7 @@ async def leaderboard(interaction: discord.Interaction):
         color=discord.Color.gold()
     )
     
-    await interaction.response.send_message(embed=embed)
+    await interaction.edit_original_response(embed=embed)
 
 # +-+-+-+-+-+-+-+-+-+
 #  B O T   T A S K S  
@@ -409,6 +408,7 @@ async def check_for_expired_trivia():
 @check_for_expired_trivia.before_loop
 async def before_check_expired():
     await client.wait_until_ready()
+    await asyncio.sleep(60)
 
 # +-+-+-+-+-+-+-+-+-+
 #  E X E C U T I O N

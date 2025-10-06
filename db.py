@@ -194,7 +194,7 @@ def get_active_question(guild_id: int):
                 cursor.execute("""
                     SELECT * FROM trivia_questions
                     WHERE guild_id = %s AND asked_at IS NOT NULL
-                      AND closed = 0 AND expires_at > %s
+                      AND closed = FALSE AND expires_at > %s
                     ORDER BY asked_at DESC LIMIT 1
                 """, (guild_id, now))
                 question = cursor.fetchone()
@@ -233,7 +233,7 @@ def get_expired_questions():
         with get_connection() as connection:
             with connection.cursor(cursor_factory=psycopg2.extras.DictCursor) as cursor:
                 now = datetime.now(timezone.utc)
-                cursor.execute("SELECT * FROM trivia_questions WHERE expires_at <= %s AND closed = 0", (now,))
+                cursor.execute("SELECT * FROM trivia_questions WHERE expires_at <= %s AND closed = FALSE", (now,))
                 return cursor.fetchall()
     except psycopg2.Error as e:
         logging.error(f"DB error while fetching expired questions:\n{e}", exc_info=True)
