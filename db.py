@@ -110,8 +110,8 @@ def set_trivia_role(guild_id: int, role_id: int | None):
                 cursor.execute("""
                     UPDATE guild_config SET mention_role_id = %s WHERE guild_id = %s
                 """, (role_id, guild_id))
+                connection.commit()
                 return cursor.rowcount > 0
-            connection.commit()
     except psycopg2.Error as e:
         logging.error(f"DB error while setting trivia role for guild {guild_id}:\n{e}", exc_info=True)
         return False
@@ -177,11 +177,12 @@ def pull_random_trivia(guild_id: int):
                     WHERE id = %s
                 """, (now, expires_at, question["id"]))
 
+                connection.commit()
+
                 logging.info(f"Trivia question {question['id']} marked as asked (expires at {expires_at}).")
                 question_dict = dict(question)
                 question_dict['expires_at'] = expires_at
                 return question_dict
-            connection.commit()
     except psycopg2.Error as e:
         logging.error(f"DB error while pulling random question:\n{e}", exc_info=True)
         return None
