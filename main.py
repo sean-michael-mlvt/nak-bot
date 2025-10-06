@@ -163,7 +163,7 @@ async def set_trivia_channel_command(interaction: discord.Interaction):
     set_trivia_channel(guild_id, channel_id)
 
     await interaction.edit_original_response(
-        f"Trivia channel has been set to this channel (`{interaction.channel.name}`)."
+        content=f"Trivia channel has been set to this channel (`{interaction.channel.name}`)."
     )
 
 @set_trivia_channel_command.error
@@ -187,15 +187,15 @@ async def set_trivia_role_command(interaction: discord.Interaction, role: discor
     if success:
         if role:
             await interaction.edit_original_response(
-                f"The trivia mention role has been set to `{role.name}`."
+                content=f"The trivia mention role has been set to `{role.name}`."
             )
         else:
             await interaction.edit_original_response(
-                "The trivia mention role has been cleared."
+                content="The trivia mention role has been cleared."
             )
     else:
         await interaction.edit_original_response(
-            "Error: Could not set trivia role. Please set a trivia channel first using `/settriviachannel`."
+            content="Error: Could not set trivia role. Please set a trivia channel first using `/settriviachannel`."
         )
 
 @set_trivia_role_command.error
@@ -222,14 +222,14 @@ async def submit_answer(interaction: discord.Interaction, answer: str):
     
     if not active_question:
         await interaction.edit_original_response(
-            "There is no active trivia question to answer right now."
+            content="There is no active trivia question to answer right now."
         )
         return
 
     question_author_id = active_question['user_id']
     if user_id == question_author_id:
         await interaction.edit_original_response(
-            "You can't answer your own trivia question!"
+            content="You can't answer your own trivia question!"
         )
         return
 
@@ -237,7 +237,7 @@ async def submit_answer(interaction: discord.Interaction, answer: str):
     store_answer(question_id, guild_id, user_id, answer.strip())
 
     await interaction.edit_original_response(
-        "Your answer has been recorded! You can update it by using the /answer command again."
+        content="Your answer has been recorded! You can update it by using the /answer command again."
     )
 
 @client.tree.command(name="leaderboard", description="Displays the top 10 trivia players for this server.")
