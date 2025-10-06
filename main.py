@@ -76,8 +76,18 @@ client = Client(command_prefix="&", intents=intents)
 )
 async def addTF(interaction: discord.Interaction, statement: str, answer: bool):
 
+    # Package the data for the view
+    submission_data = {
+        'guild_id': interaction.guild_id,
+        'user_id': interaction.user.id,
+        'q_type': "TF",
+        'question': statement.strip(),
+        'answer': str(answer),
+        'difficulty': 2
+    }
+
     embed = Embed(title="Please Confirm Submission", description=f"**Statement:** {statement}\n**Answer:** {answer}")
-    view = ConfirmationView()
+    view = ConfirmationView(submission_data=submission_data)
 
     await interaction.response.send_message(
         # f"**Please Confirm:** \n**Question:** {question}\n**Answer:** {answer}",
@@ -85,25 +95,6 @@ async def addTF(interaction: discord.Interaction, statement: str, answer: bool):
         ephemeral=True,
         view=view
     )
-    # Wait for a button click or timeout
-    await view.wait()
-
-    # Handle Confirmation, Cancelation, or Timeout
-    if view.value is None:
-        await interaction.edit_original_response(content="Submission timed out, no confirmation.", view=None, embed=None)
-    elif view.value:
-
-        store_question(
-            guild_id=interaction.guild_id,
-            user_id=interaction.user.id,
-            q_type="TF",
-            question=statement.strip(),
-            answer=str(answer),
-            difficulty=2
-        )
-
-        await interaction.edit_original_response(content="✅ Question Submitted Successfully!", view=None, embed=None)
-        pass
 
 # Add Question & Answer
 @client.tree.command(name="addqa", description="Add a Question and Answer trivia question to the database")
@@ -123,8 +114,18 @@ async def addTF(interaction: discord.Interaction, statement: str, answer: bool):
 )
 async def addQA(interaction: discord.Interaction, question: str, answer: str, difficulty: app_commands.Choice[int]):
 
+    # Package the data for confirmation
+    submission_data = {
+        'guild_id': interaction.guild_id,
+        'user_id': interaction.user.id,
+        'q_type': "QA",
+        'question': question.strip(),
+        'answer': answer.strip(),
+        'difficulty': difficulty.value
+    }
+
     embed = Embed(title="Please Confirm Submission", description=f"**Question:** {question}\n**Answer:** {answer}\n**Difficulty:** {difficulty.value}/5")
-    view = ConfirmationView()
+    view = ConfirmationView(submission_data=submission_data)
 
     await interaction.response.send_message(
         # f"**Please Confirm:** \n**Question:** {question}\n**Answer:** {answer}\n**Difficulty: **{difficulty.value}/5",
@@ -132,25 +133,6 @@ async def addQA(interaction: discord.Interaction, question: str, answer: str, di
         ephemeral=True,
         view=view
     )
-    # Wait for a button click or timeout
-    await view.wait()
-
-    # Handle Confirmation, Cancelation, or Timeout
-    if view.value is None:
-        await interaction.edit_original_response(content="Submission timed out, no confirmation.", view=None, embed=None)
-    elif view.value:
-
-        store_question(
-            guild_id=interaction.guild_id,
-            user_id=interaction.user.id,
-            q_type="QA",
-            question=question.strip(),
-            answer=answer.strip(),
-            difficulty=difficulty.value
-        )
-
-        await interaction.edit_original_response(content="✅ Question Submitted Successfully!", view=None, embed=None)
-        pass
 
 @client.tree.command(name="settriviachannel", description="Sets this channel as the one for daily trivia questions.")
 @app_commands.checks.has_permissions(administrator=True) # Only admins can run this
@@ -244,6 +226,7 @@ async def submit_answer(interaction: discord.Interaction, answer: str):
 async def leaderboard(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
 
+    logging.info("Pulling Leaderboard")
     guild_id = interaction.guild_id
     board = get_leaderboard(guild_id=guild_id)
     
@@ -351,6 +334,7 @@ async def check_for_expired_trivia():
         # Mark the question as processed
         close_question(question['id'])
 
+        logging.info(f"Processing question from user {question["user_id"]}:\n{question["question"]}")
         submissions = get_answers_for_question(question['id'])
         correct_answer = question['answer'].lower().strip()
         points_to_award = 10 * question['difficulty']
