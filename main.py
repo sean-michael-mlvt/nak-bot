@@ -230,7 +230,7 @@ async def leaderboard(interaction: discord.Interaction):
     board = get_leaderboard(guild_id=guild_id)
     
     if not board:
-        await interaction.edit_original_response("The leaderboard is currently empty.", ephemeral=True)
+        await interaction.edit_original_response("The leaderboard is currently empty.")
         return
         
     rankings = []
