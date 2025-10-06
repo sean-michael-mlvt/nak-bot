@@ -23,7 +23,7 @@ load_dotenv()
 token = os.getenv('DISCORD_TOKEN')
 # testServerID = os.getenv('DEV_SERVER_ID')       # Testing Only
 # testChannelID = os.getenv('DEV_CHANNEL_ID')     # Testing Only
-TRIVIA_INTERVAL = 60                              # Minutes between trivia questions
+TRIVIA_INTERVAL = 8                              # Minutes between trivia questions
 # guild = discord.Object(id=testServerID)
 
 # Logging setup
@@ -324,7 +324,7 @@ async def before_daily_trivia():
     await client.wait_until_ready()
     await asyncio.sleep(60)
 
-@tasks.loop(minutes=5)
+@tasks.loop(minutes=2)
 async def check_for_expired_trivia():
     expired_questions = get_expired_questions()
     
