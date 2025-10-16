@@ -6,6 +6,10 @@ import os
 import sys
 import logging
 import asyncio
+
+# Load Environment Variables
+load_dotenv()
+
 from views import ConfirmationView
 
 # Imports for commands
@@ -17,13 +21,12 @@ from datetime import time, timezone, datetime
 # Database Imports
 from db import init_db, store_question, pull_random_trivia, set_trivia_channel, get_all_guild_configs, get_active_question, store_answer, mark_answer_correct
 from db import get_expired_questions, get_answers_for_question, get_channel_for_guild, update_leaderboard, close_question, get_leaderboard, set_trivia_role
+from logic import check_correct
 
-# Load Environment Variables
-load_dotenv()
 token = os.getenv('DISCORD_TOKEN')
 # testServerID = os.getenv('DEV_SERVER_ID')       # Testing Only
 # testChannelID = os.getenv('DEV_CHANNEL_ID')     # Testing Only
-TRIVIA_INTERVAL = 60                              # Minutes between trivia questions
+TRIVIA_INTERVAL = 10                              # Minutes between trivia questions
 # guild = discord.Object(id=testServerID)
 
 # Logging setup
@@ -129,6 +132,50 @@ async def addQA(interaction: discord.Interaction, question: str, answer: str, di
 
     await interaction.response.send_message(
         # f"**Please Confirm:** \n**Question:** {question}\n**Answer:** {answer}\n**Difficulty: **{difficulty.value}/5",
+        embed=embed,
+        ephemeral=True,
+        view=view
+    )
+
+# Add List Question
+@client.tree.command(name="addlq", description="Add a List Question where multiple answers are required.")
+@app_commands.choices(
+    difficulty=[
+        app_commands.Choice(name="1 (Very Easy)", value=1),
+        app_commands.Choice(name="2 (Easy)", value=2),
+        app_commands.Choice(name="3 (Medium)", value=3),
+        app_commands.Choice(name="4 (Hard)", value=4),
+        app_commands.Choice(name="5 (Very Hard)", value=5),
+    ]
+)
+@app_commands.describe(
+    question="A trivia question that has multiple answers",
+    answers="A comma-separated list of the correct answers (e.g., answer1, answer2, answer3)",
+    difficulty="Difficulty based on how many answers there are and how obscure they are"
+)
+async def addLQ(interaction: discord.Interaction, question: str, answers: str, difficulty: app_commands.Choice[int]):
+
+    # Package the data for confirmation
+    submission_data = {
+        'guild_id': interaction.guild_id,
+        'user_id': interaction.user.id,
+        'q_type': "LQ",
+        'question': question.strip(),
+        'answer': answers.strip(),
+        'difficulty': difficulty.value
+    }
+
+    # Format the answers for better readability in the confirmation embed
+    answer_list = [ans.strip() for ans in answers.split(',')]
+    formatted_answers = "\n".join(f"- {ans}" for ans in answer_list)
+
+    embed = Embed(
+        title="Please Confirm Submission", 
+        description=f"**Question:** {question}\n\n**Answers:**\n{formatted_answers}\n\n**Difficulty:** {difficulty.value}/5"
+    )
+    view = ConfirmationView(submission_data=submission_data)
+
+    await interaction.response.send_message(
         embed=embed,
         ephemeral=True,
         view=view
@@ -260,7 +307,7 @@ async def daily_trivia():
     now_utc = datetime.now(timezone.utc)
 
     # Check if the current hour is between 2:00 and 5:00 EDT
-    if 5 <= now_utc.hour <= 9:
+    if 5 <= now_utc.hour <= 10:
         logging.info("Skipping trivia task during quiet hours (2:00-5:00 UTC).")
         return
 
@@ -286,7 +333,8 @@ async def daily_trivia():
         try:
             user = await client.fetch_user(question["user_id"])
             authorName = user.display_name
-            authorIcon = user.avatar.url
+            if user.avatar:
+                authorIcon = user.avatar.url
         except discord.NotFound:
             logging.debug(f"User with id {question["user_id"]} not found.")
         except Exception as e:
@@ -301,8 +349,6 @@ async def daily_trivia():
         stars = "⭐ " * question["difficulty"] + "➖ " * (5 - question["difficulty"])
         embed = discord.Embed(
             title=f"{question["question"]}" + title_ender,
-            # description=f"**Difficulty:** {stars}\n**Question Type:** {question["question_type"]}\nUse /answer to submit your answer!",
-            # description="Use /answer to submit your answer!",
             color=discord.Color.blue()
         )
         embed.set_author(name=f"{authorName}", icon_url=authorIcon)
@@ -322,9 +368,9 @@ async def daily_trivia():
 @daily_trivia.before_loop
 async def before_daily_trivia():
     await client.wait_until_ready()
-    await asyncio.sleep(120)
+    await asyncio.sleep(30)
 
-@tasks.loop(minutes=10)
+@tasks.loop(minutes=1)
 async def check_for_expired_trivia():
     expired_questions = get_expired_questions()
     
@@ -336,22 +382,33 @@ async def check_for_expired_trivia():
         logging.info(f"Processing question from user {question["user_id"]}: {question["question"]}")
         submissions = get_answers_for_question(question['id'])
         correct_answer = question['answer'].lower().strip()
-        points_to_award = 10 * question['difficulty']
+        max_points = 10 * question['difficulty']
         
+        # Lists to categorize results
         winners = []
+        partial_credit = []
+        losers = []
+
         for sub in submissions:
-            user_answer = sub['answer'].lower().strip()
-            is_correct = False
+            user_answer = sub['answer']
+            # Determine correctness and points to award
+            is_correct, points_awarded = await check_correct(
+                correct_answer=correct_answer,
+                user_answer=user_answer,
+                question_type=question['question_type'],
+                difficulty=question['difficulty']
+            )
             
-            if question['question_type'] == 'TF' and user_answer == correct_answer:
-                is_correct = True
-            elif question['question_type'] == 'QA' and (correct_answer in user_answer or user_answer in correct_answer):
-                is_correct = True
-            
+            # Sort user submissions into winners, partially correct, and losers
             if is_correct:
                 mark_answer_correct(sub['id'])
-                update_leaderboard(question['guild_id'], sub['user_id'], points_to_award)
+                update_leaderboard(question['guild_id'], sub['user_id'], max_points)
                 winners.append(f"<@{sub['user_id']}>")
+            elif points_awarded > 0:
+                update_leaderboard(question['guild_id'], sub['user_id'], points_awarded)
+                partial_credit.append(f"<@{sub['user_id']}> +{points_awarded}")
+            else:
+                losers.append(f"<@{sub['user_id']}>")
 
         # Announce the results in the set trivia channel
         channel_id = get_channel_for_guild(question['guild_id'])
@@ -378,11 +435,22 @@ async def check_for_expired_trivia():
 
                 resultsHeading = "### New Trivia Results!"
 
+                # Add fields for each category if they have members
                 if winners:
                     winner_str = ", ".join(winners)
-                    results_embed.add_field(name=f"🏆 Winners (+{points_to_award} points)", value=winner_str, inline=False)
-                else:
-                    results_embed.add_field(name="🏆 Winners", value="No one answered correctly.", inline=False)
+                    results_embed.add_field(name=f"🏆 Winners (+{max_points} points)", value=winner_str, inline=False)
+                
+                if partial_credit:
+                    partial_credit_str = ", ".join(partial_credit)
+                    results_embed.add_field(name="👍 Partial Credit", value=partial_credit_str, inline=False)
+
+                if losers:
+                    loser_str = ", ".join(losers)
+                    results_embed.add_field(name="👎 Incorrect", value=loser_str, inline=False)
+
+                # Handle the case where no one submitted an answer
+                if not submissions:
+                    results_embed.add_field(name="🏆 Results", value="No one submitted an answer.", inline=False)
                 
                 await channel.send(content=resultsHeading, embed=results_embed)
 
@@ -390,7 +458,7 @@ async def check_for_expired_trivia():
 @check_for_expired_trivia.before_loop
 async def before_check_expired():
     await client.wait_until_ready()
-    await asyncio.sleep(150)
+    await asyncio.sleep(60)
 
 # +-+-+-+-+-+-+-+-+-+
 #  E X E C U T I O N

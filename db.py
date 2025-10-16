@@ -13,7 +13,7 @@ DATABASE_URL = os.getenv('DATABASE_URL')
 pool = SimpleConnectionPool(minconn=1, maxconn=10, dsn=DATABASE_URL, sslmode='require')
 
 EXPIRATION_HOURS = 0
-EXPIRATION_MINUTES = 49
+EXPIRATION_MINUTES = 1
 
 # logger = logging.getLogger("discord")
 logging.basicConfig(
@@ -42,7 +42,7 @@ def init_db():
                     id SERIAL PRIMARY KEY,
                     guild_id BIGINT NULL,
                     user_id BIGINT NULL,
-                    question_type TEXT CHECK(question_type IN ('TF', 'QA')) NOT NULL,
+                    question_type TEXT CHECK(question_type IN ('TF', 'QA', 'LQ')) NOT NULL,
                     question TEXT NOT NULL,
                     answer TEXT NOT NULL,
                     difficulty INTEGER CHECK(difficulty BETWEEN 1 AND 5),
