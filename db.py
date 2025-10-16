@@ -87,6 +87,16 @@ def init_db():
                     mention_role_id BIGINT NULL
                 )
             """)
+            
+            # Discord Users table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS discord_users (
+                    user_id BIGINT PRIMARY KEY,
+                    display_name TEXT NOT NULL,
+                    last_updated TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
         connection.commit()
     logging.info("Database initialized successfully.")
 
