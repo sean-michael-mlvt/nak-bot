@@ -26,7 +26,7 @@ from logic import check_correct
 token = os.getenv('DISCORD_TOKEN')
 # testServerID = os.getenv('DEV_SERVER_ID')       # Testing Only
 # testChannelID = os.getenv('DEV_CHANNEL_ID')     # Testing Only
-TRIVIA_INTERVAL = 10                              # Minutes between trivia questions
+TRIVIA_INTERVAL = 60                              # Minutes between trivia questions
 # guild = discord.Object(id=testServerID)
 
 # Logging setup
@@ -368,9 +368,9 @@ async def daily_trivia():
 @daily_trivia.before_loop
 async def before_daily_trivia():
     await client.wait_until_ready()
-    await asyncio.sleep(30)
+    await asyncio.sleep(60)
 
-@tasks.loop(minutes=1)
+@tasks.loop(minutes=10)
 async def check_for_expired_trivia():
     expired_questions = get_expired_questions()
     
@@ -458,7 +458,7 @@ async def check_for_expired_trivia():
 @check_for_expired_trivia.before_loop
 async def before_check_expired():
     await client.wait_until_ready()
-    await asyncio.sleep(60)
+    await asyncio.sleep(90)
 
 # +-+-+-+-+-+-+-+-+-+
 #  E X E C U T I O N
