@@ -17,5 +17,3 @@ __pycache__/
 # Database Files
 *.db
 *.sqlite3
-
-populate_users.py
